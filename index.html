@@ -1,0 +1,183 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex, nofollow">
+<meta name="theme-color" content="#1f3350">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="MBSC Archive">
+<meta name="format-detection" content="telephone=no">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<title>Club Archive</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%231f3350'/%3E%3Cpath d='M6 21c3-3 6-3 10 0s7 3 10 0' stroke='%23d9b56c' stroke-width='2.4' fill='none' stroke-linecap='round'/%3E%3Cpath d='M9 14h14' stroke='%23f4efe4' stroke-width='2.4' stroke-linecap='round'/%3E%3C/svg%3E">
+<link href="https://api.fontshare.com/v2/css?f[]=gambetta@500,600&f[]=switzer@400,500,600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="vendor/pdfjs/pdf_viewer.css">
+<link rel="stylesheet" href="app.css?v=9">
+</head>
+<body>
+
+<!-- Lock screen -->
+<section id="lock" class="lock" hidden aria-labelledby="lock-title">
+  <div class="lock-card">
+    <svg class="mark" viewBox="0 0 48 48" aria-hidden="true"><path d="M8 31c4.5-4.5 9-4.5 16 0s11.5 4.5 16 0" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"/><path d="M8 38c4.5-4.5 9-4.5 16 0s11.5 4.5 16 0" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" opacity=".45"/><path d="M14 20h20M24 10v10" stroke="currentColor" stroke-width="3" stroke-linecap="round"/></svg>
+    <p class="eyebrow">Members' Archive</p>
+    <h1 id="lock-title" class="lock-title">Manhasset Bay Sportsmen’s Club</h1>
+    <p class="lock-sub">Newsletters, by-laws and yearbooks from the club’s history. Enter the club password to continue.</p>
+    <form id="lock-form" class="lock-form" autocomplete="on">
+      <input type="text" name="username" value="member" autocomplete="username" hidden>
+      <label for="pw" class="sr-only">Club password</label>
+      <input id="pw" name="password" type="password" placeholder="Club password" autocomplete="current-password" required>
+      <button type="submit" id="unlock-btn" class="btn-primary">Open archive</button>
+      <p class="remember">Your browser can save the password so next time is one click.</p>
+      <p id="lock-msg" class="lock-msg" role="alert" aria-live="polite"></p>
+    </form>
+  </div>
+</section>
+
+<!-- App -->
+<div id="app" class="app" hidden>
+  <header class="topbar">
+    <button class="brand" id="home-btn" title="Back to all documents">
+      <svg class="mark-sm" viewBox="0 0 48 48" aria-hidden="true"><path d="M8 31c4.5-4.5 9-4.5 16 0s11.5 4.5 16 0" fill="none" stroke="currentColor" stroke-width="3.4" stroke-linecap="round"/><path d="M14 20h20M24 10v10" stroke="currentColor" stroke-width="3.4" stroke-linecap="round"/></svg>
+      <span class="brand-text"><span class="brand-name">Manhasset Bay Sportsmen’s Club</span><span class="brand-sub">Members’ Archive</span></span>
+    </button>
+    <form id="search-form" class="search" role="search">
+      <svg class="search-ico" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7" fill="none" stroke="currentColor" stroke-width="2"/><path d="m20 20-3.5-3.5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+      <label for="q" class="sr-only">Search all documents</label>
+      <input id="q" type="search" placeholder="Search every page — e.g. clambake, “striped bass”, fluke" autocomplete="off" enterkeyhint="search">
+      <button type="button" id="clear-q" class="icon-btn clear" aria-label="Clear search" hidden>×</button>
+      <button type="submit" class="btn-primary search-go">Search</button>
+    </form>
+    <button id="lock-btn" class="btn-ghost" title="Lock the archive">Lock</button>
+  </header>
+
+  <nav class="types" aria-label="Document types">
+    <div id="type-tabs" class="type-tabs" role="tablist"></div>
+    <button id="filters-btn" class="filters-btn" type="button" aria-expanded="false" aria-controls="types-right">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M7 12h10M10 18h4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+      <span>Filters</span><span id="filters-sum" class="filters-sum"></span>
+    </button>
+    <div class="types-right" id="types-right">
+      <div class="sheet-head"><h2>View, years and sort</h2><button type="button" id="sheet-done" class="btn-primary sm-btn">Done</button></div>
+      <div class="seg" role="group" aria-label="View">
+        <button type="button" data-view="grid" aria-pressed="true">By type</button>
+        <button type="button" data-view="timeline" aria-pressed="false">Timeline</button>
+      </div>
+      <span class="yr" role="group" aria-label="Years">
+        <label for="y-from" class="lbl">Years</label>
+        <select id="y-from" class="select" aria-label="From year"></select>
+        <span class="dash">to</span>
+        <select id="y-to" class="select" aria-label="To year"></select>
+      </span>
+      <span class="srt"><label for="sort" class="lbl">Sort</label>
+      <select id="sort" class="select"></select></span>
+    </div>
+  </nav>
+
+  <main id="main" class="main">
+    <section id="list" class="list" aria-live="polite"></section>
+    <section id="viewer" class="viewer" hidden aria-label="Document viewer">
+      <div class="vbar">
+        <button id="v-close" class="icon-btn" aria-label="Close document" title="Close">
+          <svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </button>
+        <div class="vtitle"><span id="v-type" class="vtype"></span><span id="v-name" class="vname"></span></div>
+        <div class="vtools">
+          <button id="v-prev" class="icon-btn" aria-label="Previous page"><svg viewBox="0 0 24 24"><path d="M6 15l6-6 6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></button>
+          <span class="pageno"><input id="v-page" inputmode="numeric" aria-label="Page number" value="1"><span id="v-count">/ 1</span></span>
+          <button id="v-next" class="icon-btn" aria-label="Next page"><svg viewBox="0 0 24 24"><path d="M6 9l6 6 6-6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></button>
+          <span class="sep"></span>
+          <button id="v-zout" class="icon-btn" aria-label="Zoom out">−</button>
+          <button id="v-fit" class="btn-ghost sm" title="Fit to width">Fit</button>
+          <button id="v-zin" class="icon-btn" aria-label="Zoom in">+</button>
+          <span class="sep"></span>
+          <button id="v-find" class="icon-btn" aria-label="Find in this document" title="Find in this document" aria-pressed="false"><svg viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6" fill="none" stroke="currentColor" stroke-width="2"/><path d="m19 19-4-4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></button>
+          <button id="v-read-btn" class="icon-btn" aria-label="Reading mode: show this page as text" title="Reading mode (large text)" aria-pressed="false"><svg viewBox="0 0 24 24"><path d="M3 18 8 6l5 12M4.8 14h6.4M15 18v-6.5a2.5 2.5 0 0 1 5 0V18m0-3.5h-3" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+          <span class="sep"></span>
+          <button id="v-link" class="icon-btn" aria-label="Copy a link to this page" title="Copy link to this page"><svg viewBox="0 0 24 24"><path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></button>
+          <button id="v-pages" class="icon-btn" aria-label="Print or save pages" title="Print or save pages"><svg viewBox="0 0 24 24"><path d="M7 9V4h10v5M7 17H5a1 1 0 0 1-1-1v-6a1 1 0 0 1 1-1h14a1 1 0 0 1 1 1v6a1 1 0 0 1-1 1h-2M7 14h10v6H7z" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round"/></svg></button>
+          <button id="v-dl" class="icon-btn" aria-label="Download PDF" title="Download PDF"><svg viewBox="0 0 24 24"><path d="M12 4v11m0 0-4.5-4.5M12 15l4.5-4.5M5 19h14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+          <button id="v-more" class="icon-btn more-btn" aria-label="More options" aria-haspopup="menu" aria-expanded="false"><svg viewBox="0 0 24 24"><circle cx="5" cy="12" r="1.9" fill="currentColor"/><circle cx="12" cy="12" r="1.9" fill="currentColor"/><circle cx="19" cy="12" r="1.9" fill="currentColor"/></svg></button>
+        </div>
+      </div>
+      <div id="v-menu" class="vmenu" role="menu" hidden>
+        <button role="menuitem" data-act="zin">Zoom in</button>
+        <button role="menuitem" data-act="zout">Zoom out</button>
+        <button role="menuitem" data-act="fit">Fit page to screen width</button>
+        <hr>
+        <button role="menuitem" data-act="link">Copy link to this page</button>
+        <button role="menuitem" data-act="pages">Print or save pages</button>
+        <button role="menuitem" data-act="dl">Download this document</button>
+        <p class="vmenu-tip">Tip: pinch with two fingers to zoom the page.</p>
+      </div>
+      <div id="dfind" class="dfind" hidden>
+        <form id="df-form" class="df-form" role="search" aria-label="Find in this document">
+          <label for="df-q" class="sr-only">Find in this document</label>
+          <input id="df-q" type="search" placeholder="Find in this document" autocomplete="off" enterkeyhint="search">
+          <button type="submit" class="btn-ghost sm">Find</button>
+        </form>
+        <span id="df-label" class="df-label" aria-live="polite"></span>
+        <span class="df-nav">
+          <button type="button" id="df-prev" class="icon-btn" aria-label="Previous matching page"><svg viewBox="0 0 24 24"><path d="M6 15l6-6 6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></button>
+          <button type="button" id="df-next" class="icon-btn" aria-label="Next matching page"><svg viewBox="0 0 24 24"><path d="M6 9l6 6 6-6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></button>
+          <button type="button" id="df-close" class="icon-btn" aria-label="Close find">×</button>
+        </span>
+      </div>
+      <div id="hitbar" class="hitbar" hidden>
+        <button id="h-prev" class="btn-ghost sm">‹ Previous match</button>
+        <span id="h-label" class="h-label"></span>
+        <button id="h-next" class="btn-ghost sm">Next match ›</button>
+      </div>
+      <div class="vstage">
+        <div id="v-container" class="v-container"><div id="v-pdf" class="pdfViewer"></div></div>
+        <div id="v-read" class="read" hidden aria-label="Page text">
+          <div class="read-bar">
+            <span id="rd-label" class="rd-label"></span>
+            <span class="read-tools">
+              <button id="rd-smaller" class="btn-ghost sm" aria-label="Smaller text">A−</button>
+              <button id="rd-bigger" class="btn-ghost sm" aria-label="Larger text">A+</button>
+              <button id="rd-copy" class="btn-ghost sm">Copy text</button>
+              <button id="rd-scan" class="btn-ghost sm">Show scan</button>
+            </span>
+          </div>
+          <article id="rd-body" class="read-body"></article>
+          <p class="read-note">This text was read from the scanned page by computer, so some words may be wrong. Use the page arrows above to move between pages.</p>
+        </div>
+        <div id="v-loading" class="v-loading" hidden><span class="spinner"></span><span>Opening document…</span></div>
+      </div>
+    </section>
+  </main>
+</div>
+
+<dialog id="link-dlg" class="dlg" aria-labelledby="lk-h">
+  <h2 id="lk-h">Link to this page</h2>
+  <p id="lk-what" class="dlg-sub"></p>
+  <div class="lk-row"><label for="lk-url" class="sr-only">Link</label><input id="lk-url" readonly><button id="lk-copy" class="btn-primary">Copy link</button></div>
+  <p class="dlg-note">Paste it into an email or text. Members will be asked for the club password, then the page opens directly.</p>
+  <div class="dlg-actions"><button class="btn-ghost" data-close>Done</button></div>
+</dialog>
+
+<dialog id="pg-dlg" class="dlg" aria-labelledby="pg-h">
+  <h2 id="pg-h">Print or save pages</h2>
+  <p id="pg-what" class="dlg-sub"></p>
+  <div class="pg-row">
+    <label for="pg-from">Pages</label><input id="pg-from" type="number" min="1" inputmode="numeric">
+    <span>to</span><label for="pg-to" class="sr-only">To page</label><input id="pg-to" type="number" min="1" inputmode="numeric">
+    <span id="pg-of" class="pg-of"></span>
+  </div>
+  <div class="pg-quick"><button id="pg-this" class="linkish" type="button">This page</button><button id="pg-all" class="linkish" type="button">Whole document</button></div>
+  <p id="pg-msg" class="dlg-note" aria-live="polite"></p>
+  <div class="dlg-actions"><button class="btn-ghost" data-close>Cancel</button><button id="pg-save" class="btn-ghost">Save as PDF</button><button id="pg-print" class="btn-primary">Print</button></div>
+</dialog>
+
+<div id="toast" class="toast" role="status" hidden></div>
+<div id="sheet-bg" class="sheet-bg" hidden></div>
+<div id="print-root" class="print-root" aria-hidden="true"></div>
+
+<script type="module" src="app.js?v=9"></script>
+</body>
+</html>
