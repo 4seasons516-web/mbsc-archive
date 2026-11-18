@@ -9,7 +9,7 @@ let KEY = null;          // CryptoKey for content
 let IDX = null;          // decrypted index
 let NORM = null;         // [{n: string, m: Uint32Array}] per doc per page (lazy)
 const state = { type: 'All', q: '', terms: [], sort: 'newest', results: null, flat: [], openId: null, page: 1, hitIdx: -1, expanded: new Set(), selected: new Set(), viewIds: [], busy: false,
-  view: 'grid', yFrom: null, yTo: null, fuzzy: true, df: null, reading: false, readSize: 19 };
+  view: 'grid', yFrom: null, yTo: null, fuzzy: true, df: null, reading: false, readSize: 19, fit: initialFit(), zoomed: false };
 let VOCAB = null, REAL = null; const fuzzyCache = new Map();
 
 /* ---------------- crypto ---------------- */
@@ -31,6 +31,10 @@ const importRaw = (raw) => crypto.subtle.importKey('raw', raw, 'AES-GCM', false,
 
 /* ---------------- unlock ---------------- */
 let LOCK = null;
+function initialFit() {
+  try { const v = localStorage.getItem('mbsc.fit'); if (v === 'page' || v === 'width') return v; } catch {}
+  return window.matchMedia('(max-width: 560px)').matches ? 'width' : 'page';
+}
 async function boot() {
   try { LOCK = await (await fetch('data/lock.json', { cache: 'no-cache' })).json(); }
   catch { msg('The archive could not be loaded. Please refresh the page.'); return; }
@@ -251,6 +255,12 @@ function initApp() {
     if (e.key === '/' && !typing) { e.preventDefault(); $('#q').focus(); }
     if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'f' && state.openId) { e.preventDefault(); openFind(); }
     if (e.key === 'Escape' && state.openId && !typing && !document.querySelector('dialog[open]')) closeDoc();
+    if (state.openId && currentPdf && !typing && !e.ctrlKey && !e.metaKey && !e.altKey && !document.querySelector('dialog[open]')) {
+      const c = $('#v-container'), noSideScroll = c.scrollWidth <= c.clientWidth + 2;
+      const back = e.key === 'ArrowLeft' ? noSideScroll : e.key === 'PageUp' && state.fit === 'page';
+      const fwd = e.key === 'ArrowRight' ? noSideScroll : e.key === 'PageDown' && state.fit === 'page';
+      if (back) { e.preventDefault(); prevPage(); } else if (fwd) { e.preventDefault(); nextPage(); }
+    }
   });
   window.addEventListener('hashchange', applyHash);
   window.addEventListener('popstate', () => {
@@ -516,14 +526,18 @@ async function initViewer() {
   eventBus.on('updatefindcontrolstate', () => { if (holdPage) queueMicrotask(() => { findController._scrollMatches = false; }); });
   viewer = new V.PDFViewer({ container: $('#v-container'), viewer: $('#v-pdf'), eventBus, linkService, findController, removePageBorders: true });
   linkService.setViewer(viewer);
-  eventBus.on('pagechanging', (e) => { state.page = e.pageNumber; $('#v-page').value = e.pageNumber; setHash(); if (state.reading) renderReading(); updateFindLabel(); });
+  eventBus.on('pagechanging', (e) => { state.page = e.pageNumber; $('#v-page').value = e.pageNumber; updateArrows(); if (state.fit === 'page') requestAnimationFrame(applyFit); if (state.q) updateHitbar(); setHash(); if (state.reading) renderReading(); updateFindLabel(); });
   $('#v-close').addEventListener('click', closeDoc);
-  $('#v-prev').addEventListener('click', () => { if (viewer.currentPageNumber > 1) viewer.currentPageNumber--; });
-  $('#v-next').addEventListener('click', () => { if (viewer.currentPageNumber < viewer.pagesCount) viewer.currentPageNumber++; });
+  $('#v-prev').addEventListener('click', prevPage);
+  $('#v-next').addEventListener('click', nextPage);
   $('#v-page').addEventListener('change', (e) => { const n = Math.max(1, Math.min(viewer.pagesCount, parseInt(e.target.value) || 1)); viewer.currentPageNumber = n; e.target.value = n; });
-  $('#v-zin').addEventListener('click', () => viewer.increaseScale());
-  $('#v-zout').addEventListener('click', () => viewer.decreaseScale());
-  $('#v-fit').addEventListener('click', () => { viewer.currentScaleValue = 'page-width'; });
+  $('#v-zin').addEventListener('click', () => { state.zoomed = true; viewer.increaseScale(); });
+  $('#v-zout').addEventListener('click', () => { state.zoomed = true; viewer.decreaseScale(); });
+  document.querySelectorAll('[data-fit]').forEach((b) => b.addEventListener('click', () => setFit(b.dataset.fit)));
+  $('#v-left').addEventListener('click', prevPage);
+  $('#v-right').addEventListener('click', nextPage);
+  initPageWheel();
+  setFit(state.fit, false);
   $('#v-dl').addEventListener('click', download);
   $('#v-find').addEventListener('click', () => ($('#dfind').hidden ? openFind() : closeFind()));
   $('#df-form').addEventListener('submit', (e) => { e.preventDefault(); findInDoc($('#df-q').value); });
@@ -548,8 +562,8 @@ async function initViewer() {
   window.addEventListener('afterprint', () => { $('#print-root').innerHTML = ''; });
   $('#h-prev').addEventListener('click', () => stepHit(-1));
   $('#h-next').addEventListener('click', () => stepHit(1));
-  window.addEventListener('resize', () => { if (viewer && state.openId) { if (viewer.currentScaleValue === 'page-width') viewer.currentScaleValue = 'page-width'; kick(); } });
-  new ResizeObserver(() => { if (viewer && state.openId && currentPdf) { if (viewer.currentScaleValue === 'page-width') viewer.currentScaleValue = 'page-width'; kick(); } }).observe($('#v-container'));
+  window.addEventListener('resize', () => { if (viewer && state.openId && currentPdf) { applyFit(); kick(); } });
+  new ResizeObserver(() => { if (viewer && state.openId && currentPdf) { applyFit(); kick(); } }).observe($('#v-container'));
   viewerReady.resolve();
 }
 const viewerReady = (() => { let r; const p = new Promise((res) => (r = res)); p.resolve = r; return p; })();
@@ -562,8 +576,9 @@ async function getPdfBytes(id) {
   return bytes;
 }
 function stepHit(dir) {
-  if (state.hitIdx >= 0 || !state.openId) return gotoHit(state.hitIdx + dir);
-  // not on a match yet (opened from a link or the list): continue from this page
+  const cur = state.flat[state.hitIdx];
+  if (!state.openId || (cur && cur.id === state.openId && cur.page === state.page)) return gotoHit(state.hitIdx + dir);
+  // not on a match (opened from a link or the list, or the reader turned pages): continue from this page
   const F = state.flat, here = (h) => h.id === state.openId;
   let i = dir > 0 ? F.findIndex((h) => here(h) && h.page > state.page) : F.findLastIndex((h) => here(h) && h.page < state.page);
   if (i < 0) { const first = F.findIndex(here); const last = F.findLastIndex(here); i = first < 0 ? 0 : dir > 0 ? Math.min(F.length - 1, last + 1) : Math.max(0, first - 1); }
@@ -611,8 +626,12 @@ async function openDoc(id, page = 1, fromHit = false, fromHistory = false, wasOp
     linkService.setDocument(pdf, null);
     if (oldPdf) setTimeout(() => oldPdf.destroy(), 0);
     await ready;
-    viewer.currentScaleValue = 'page-width';
+    viewer.scrollMode = state.fit === 'page' ? SCROLL_PAGE : SCROLL_VERTICAL;
+    state.zoomed = false;
+    if (state.fit === 'width') viewer.currentScaleValue = 'page-width';
     viewer.currentPageNumber = state.page;
+    applyFit();
+    updateArrows();
     $('#v-page').value = state.page;
     kick();
     highlight();
@@ -623,6 +642,55 @@ async function openDoc(id, page = 1, fromHit = false, fromHistory = false, wasOp
   } finally { if (token === loadToken) $('#v-loading').hidden = true; }
 }
 // make sure pdf.js draws the visible pages (it otherwise waits for a scroll event)
+/* ---- page fit & page turning ---- */
+const SCROLL_VERTICAL = 0, SCROLL_PAGE = 3;
+function setFit(mode, save = true) {
+  state.fit = mode; state.zoomed = false;
+  if (save) try { localStorage.setItem('mbsc.fit', mode); } catch {}
+  document.querySelectorAll('[data-fit]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.fit === mode)));
+  $('#v-container').classList.toggle('fit-page', mode === 'page');
+  if (!viewer || !currentPdf) return;
+  const n = viewer.currentPageNumber;
+  const want = mode === 'page' ? SCROLL_PAGE : SCROLL_VERTICAL;
+  if (viewer.scrollMode !== want) viewer.scrollMode = want;
+  if (mode === 'width') viewer.currentScaleValue = 'page-width';
+  viewer.currentPageNumber = n;
+  applyFit(); kick();
+}
+// scale so the whole current page fits inside the window, leaving room for the side arrows
+function applyFit() {
+  if (!viewer || !currentPdf || state.zoomed) return;
+  if (state.fit !== 'page') { viewer.currentScaleValue = 'page-width'; return; }
+  const pv = viewer.getPageView(viewer.currentPageNumber - 1); if (!pv || !pv.viewport) return;
+  const c = $('#v-container'); if (!c.clientWidth || !c.clientHeight) return;
+  const w1 = pv.viewport.width / pv.scale, h1 = pv.viewport.height / pv.scale;
+  const side = window.innerWidth > 560 ? 76 : 6;
+  const s = Math.min((c.clientWidth - side * 2) / w1, (c.clientHeight - 20) / h1);
+  if (s > 0.05 && Math.abs(s - viewer.currentScale) > 0.002) viewer.currentScale = s;
+}
+function prevPage() { if (viewer && viewer.currentPageNumber > 1) viewer.currentPageNumber--; }
+function nextPage() { if (viewer && viewer.currentPageNumber < viewer.pagesCount) viewer.currentPageNumber++; }
+function updateArrows() {
+  if (!viewer) return;
+  const n = viewer.currentPageNumber, total = viewer.pagesCount || 1;
+  $('#v-left').disabled = n <= 1; $('#v-right').disabled = n >= total;
+  $('#v-left').title = n <= 1 ? 'First page' : `Previous page (${n - 1} of ${total})`;
+  $('#v-right').title = n >= total ? 'Last page' : `Next page (${n + 1} of ${total})`;
+}
+// in whole-page view the mouse wheel turns pages (unless zoomed in far enough to scroll)
+function initPageWheel() {
+  const c = $('#v-container'); let acc = 0, last = 0;
+  c.addEventListener('wheel', (e) => {
+    if (state.fit !== 'page' || e.ctrlKey || !currentPdf) return;
+    if (c.scrollHeight > c.clientHeight + 2) return;
+    e.preventDefault();
+    const now = Date.now();
+    if (now - last < 380) return;
+    acc += e.deltaY;
+    if (Math.abs(acc) < 40) return;
+    acc > 0 ? nextPage() : prevPage(); acc = 0; last = now;
+  }, { passive: false });
+}
 function kick() {
   const go = () => { try { viewer.update(); viewer.forceRendering?.(); } catch {} };
   requestAnimationFrame(() => { go(); setTimeout(go, 150); });
@@ -648,6 +716,10 @@ function updateHitbar() {
   if (i < 0) {
     const n = state.flat.filter((h) => h.id === state.openId).length;
     $('#h-label').textContent = n ? `${n} matching page${n > 1 ? 's' : ''} in this document · ${state.flat.length} in all` : `${state.flat.length} matching pages in all results`;
+  } else if (state.flat[i].id === state.openId && state.flat[i].page !== state.page) {
+    const n = state.flat.filter((h) => h.id === state.openId).length;
+    $('#h-label').textContent = `Viewing page ${state.page} · ${n} matching page${n > 1 ? 's' : ''} in this document — Next/Previous continue from here`;
+    $('#h-prev').disabled = $('#h-next').disabled = false; return;
   } else {
     const h = state.flat[i]; const d = IDX.byId.get(h.id);
     $('#h-label').textContent = `Match ${i + 1} of ${state.flat.length} · ${d.type}, ${d.label}, page ${h.page}`;
@@ -994,7 +1066,7 @@ function initPhone() {
   menu.addEventListener('click', (e) => {
     const b = e.target.closest('[data-act]'); if (!b) return;
     showMenu(false);
-    ({ zin: () => viewer.increaseScale(), zout: () => viewer.decreaseScale(), fit: () => { viewer.currentScaleValue = 'page-width'; },
+    ({ zin: () => { state.zoomed = true; viewer.increaseScale(); }, zout: () => { state.zoomed = true; viewer.decreaseScale(); }, fit: () => setFit('width'), fitpage: () => setFit('page'),
        link: showLink, pages: showPagesDialog, dl: download })[b.dataset.act]?.();
   });
   document.addEventListener('click', (e) => { if (!menu.hidden && !menu.contains(e.target)) showMenu(false); });
@@ -1034,7 +1106,7 @@ function initPinch() {
     const { ratio, scale, ox, oy, mx, my } = g; g = null;
     inner.style.transform = ''; inner.style.willChange = '';
     if (Math.abs(ratio - 1) < 0.02) return;
-    viewer.currentScale = scale * ratio;
+    state.zoomed = true; viewer.currentScale = scale * ratio;
     requestAnimationFrame(() => { c.scrollLeft = ox * ratio - mx; c.scrollTop = oy * ratio - my; kick(); });
   };
   c.addEventListener('touchend', (e) => { if (e.touches.length < 2) end(); });

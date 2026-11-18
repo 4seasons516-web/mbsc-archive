@@ -434,3 +434,18 @@ body { -webkit-tap-highlight-color: transparent; overscroll-behavior-y: none; }
   .hitbar { padding: var(--space-1) var(--space-2); }
   .hitbar .btn-ghost.sm { min-height: 36px; }
 }
+
+/* ---------- whole-page view & side page arrows ---------- */
+.vfit button { padding: var(--space-1) var(--space-2); white-space: nowrap; }
+.v-container.fit-page .pdfViewer { padding: 10px 0; }
+.v-container.fit-page .pdfViewer .page { margin: 0 auto !important; }
+.pgarrow { position: absolute; top: 50%; z-index: 6; transform: translateY(-50%); display: grid; place-items: center; width: 52px; height: 52px; border: 0; border-radius: 50%; background: oklch(0.32 0.065 255 / .78); color: oklch(0.98 0.01 85); box-shadow: 0 2px 10px oklch(0.2 0.03 255 / .3); cursor: pointer; transition: background .15s, opacity .15s, transform .15s; }
+.pgarrow svg { width: 26px; height: 26px; }
+.pgarrow:hover { background: var(--navy); transform: translateY(-50%) scale(1.06); }
+.pgarrow:focus-visible { outline: 3px solid var(--brass); outline-offset: 2px; }
+.pgarrow:disabled { opacity: .22; cursor: default; transform: translateY(-50%); background: oklch(0.32 0.065 255 / .6); }
+.pgarrow.left { left: 12px; }
+.pgarrow.right { right: 12px; }
+.v-container:not(.fit-page) ~ .pgarrow.right, .vstage:has(.v-container:not(.fit-page)) .pgarrow.right { right: 24px; }
+@media (max-width: 560px) { .pgarrow { display: none; } }
+@media print { .pgarrow { display: none !important; } }

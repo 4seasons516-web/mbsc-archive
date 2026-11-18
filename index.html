@@ -16,7 +16,7 @@
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%231f3350'/%3E%3Cpath d='M6 21c3-3 6-3 10 0s7 3 10 0' stroke='%23d9b56c' stroke-width='2.4' fill='none' stroke-linecap='round'/%3E%3Cpath d='M9 14h14' stroke='%23f4efe4' stroke-width='2.4' stroke-linecap='round'/%3E%3C/svg%3E">
 <link href="https://api.fontshare.com/v2/css?f[]=gambetta@500,600&f[]=switzer@400,500,600&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="vendor/pdfjs/pdf_viewer.css">
-<link rel="stylesheet" href="app.css?v=9">
+<link rel="stylesheet" href="app.css?v=10">
 </head>
 <body>
 
@@ -92,7 +92,7 @@
           <button id="v-next" class="icon-btn" aria-label="Next page"><svg viewBox="0 0 24 24"><path d="M6 9l6 6 6-6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></button>
           <span class="sep"></span>
           <button id="v-zout" class="icon-btn" aria-label="Zoom out">−</button>
-          <button id="v-fit" class="btn-ghost sm" title="Fit to width">Fit</button>
+          <span id="v-fit" class="seg vfit" role="group" aria-label="Page size"><button type="button" data-fit="page" aria-pressed="true" title="Show the whole page in the window">Whole page</button><button type="button" data-fit="width" aria-pressed="false" title="Fit the page to the window width">Width</button></span>
           <button id="v-zin" class="icon-btn" aria-label="Zoom in">+</button>
           <span class="sep"></span>
           <button id="v-find" class="icon-btn" aria-label="Find in this document" title="Find in this document" aria-pressed="false"><svg viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6" fill="none" stroke="currentColor" stroke-width="2"/><path d="m19 19-4-4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></button>
@@ -107,6 +107,7 @@
       <div id="v-menu" class="vmenu" role="menu" hidden>
         <button role="menuitem" data-act="zin">Zoom in</button>
         <button role="menuitem" data-act="zout">Zoom out</button>
+        <button role="menuitem" data-act="fitpage">Show whole page</button>
         <button role="menuitem" data-act="fit">Fit page to screen width</button>
         <hr>
         <button role="menuitem" data-act="link">Copy link to this page</button>
@@ -133,6 +134,8 @@
         <button id="h-next" class="btn-ghost sm">Next match ›</button>
       </div>
       <div class="vstage">
+        <button id="v-left" class="pgarrow left" type="button" aria-label="Previous page"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l-7 7 7 7" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+        <button id="v-right" class="pgarrow right" type="button" aria-label="Next page"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5l7 7-7 7" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
         <div id="v-container" class="v-container"><div id="v-pdf" class="pdfViewer"></div></div>
         <div id="v-read" class="read" hidden aria-label="Page text">
           <div class="read-bar">
@@ -178,6 +181,6 @@
 <div id="sheet-bg" class="sheet-bg" hidden></div>
 <div id="print-root" class="print-root" aria-hidden="true"></div>
 
-<script type="module" src="app.js?v=9"></script>
+<script type="module" src="app.js?v=10"></script>
 </body>
 </html>
